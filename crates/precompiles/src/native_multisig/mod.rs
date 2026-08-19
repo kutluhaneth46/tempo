@@ -267,7 +267,7 @@ mod tests {
 
     #[test]
     fn derive_account_is_stateless() -> eyre::Result<()> {
-        let mut storage = HashMapStorageProvider::new_with_spec(1, TempoHardfork::T11);
+        let mut storage = HashMapStorageProvider::new_with_spec(1, TempoHardfork::T12);
         let config = initial_config();
         let expected = config.derive_account().unwrap();
 
@@ -292,7 +292,7 @@ mod tests {
     fn updates_replace_one_commitment_and_emit_config() -> eyre::Result<()> {
         let config = initial_config();
         let account = config.derive_account().unwrap();
-        let mut storage = HashMapStorageProvider::new_with_spec(1, TempoHardfork::T11)
+        let mut storage = HashMapStorageProvider::new_with_spec(1, TempoHardfork::T12)
             .with_tx_kind(TxKind::Call(NATIVE_MULTISIG_ADDRESS));
 
         let first_owner = address!("0000000000000000000000000000000000000022");
@@ -437,7 +437,7 @@ mod tests {
         ];
 
         for (case, tx_kind, origin, directly_authorized, transaction_key) in cases {
-            let mut storage = HashMapStorageProvider::new_with_spec(1, TempoHardfork::T11);
+            let mut storage = HashMapStorageProvider::new_with_spec(1, TempoHardfork::T12);
             if let Some(tx_kind) = tx_kind {
                 storage = storage.with_tx_kind(tx_kind);
             }
