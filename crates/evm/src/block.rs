@@ -31,7 +31,7 @@ use tempo_contracts::precompiles::{
     ADDRESS_REGISTRY_ADDRESS, CURRENT_COMMITTEE_ADDRESS, ICurrentCommittee, INITIAL_FACTORY_OWNER,
     InitialZoneFactoryAccount, RECEIVE_POLICY_GUARD_ADDRESS, SIGNATURE_VERIFIER_ADDRESS,
     STORAGE_CREDITS_ADDRESS, TIP20_CHANNEL_RESERVE_ADDRESS, VALIDATOR_CONFIG_V2_ADDRESS,
-    initial_zone_factory_state,
+    initial_zone_factory_state, t12_zone_runtimes,
 };
 use tempo_primitives::{
     SubBlock, SubBlockMetadata, TempoReceipt, TempoTxEnvelope, TempoTxType,
@@ -270,12 +270,9 @@ where
         Ok(())
     }
 
-    /// Exercises the shared runtime upgrade path at T12.
-    ///
-    /// The selected runtimes intentionally remain identical to T10 until the T12 contracts land.
+    /// Installs the T12 shared Zone runtime upgrade without modifying storage.
     fn upgrade_zone_runtimes_at_boundary(&mut self) -> Result<(), BlockExecutionError> {
-        let [_, portal, verifier, messenger] = initial_zone_factory_state(INITIAL_FACTORY_OWNER);
-        self.install_zone_runtimes_at_boundary([portal, verifier, messenger])
+        self.install_zone_runtimes_at_boundary(t12_zone_runtimes())
     }
 
     /// Installs shared Zone runtimes without modifying their existing storage.
@@ -882,7 +879,10 @@ mod tests {
             CURRENT_COMMITTEE_ADDRESS, ICurrentCommittee, PATH_USD_ADDRESS, ZONE_FACTORY_ADDRESS,
             ZONE_MESSENGER_ADDRESS, ZONE_PORTAL_IMPL_ADDRESS, ZONE_VERIFIER_ADDRESS,
         },
-        zones::{ZONE_MESSENGER_RUNTIME, ZONE_PORTAL_RUNTIME, ZONE_VERIFIER_RUNTIME},
+        zones::{
+            T12_ZONE_MESSENGER_RUNTIME, T12_ZONE_PORTAL_RUNTIME, T12_ZONE_VERIFIER_RUNTIME,
+            ZONE_MESSENGER_RUNTIME, ZONE_PORTAL_RUNTIME, ZONE_VERIFIER_RUNTIME,
+        },
     };
     use tempo_dkg_onchain_artifacts::OnchainDkgOutcome;
     use tempo_primitives::{
@@ -2106,13 +2106,20 @@ mod tests {
     }
 
     #[test]
-    fn test_deploy_zone_factory_at_boundary_installs_t10_state() {
+    fn test_zone_runtime_boundaries_preserve_t10_and_install_t12() {
         assert_eq!(
             INITIAL_FACTORY_OWNER,
             address!("0xaF571FD4B3AD43a5807A5E58bFb25ea1aB327A14")
         );
         let chainspec = Arc::new(TempoChainSpec::from_genesis(DEV.genesis().clone()));
         let mut db = State::builder().with_bundle_update().build();
+        let preserved_slot = U256::from(7);
+        let preserved_value = U256::from(42);
+        db.insert_account_with_storage(
+            ZONE_PORTAL_IMPL_ADDRESS,
+            AccountInfo::default(),
+            [(preserved_slot, preserved_value)].into_iter().collect(),
+        );
         let portal_runtime = Bytecode::new_legacy(ZONE_PORTAL_RUNTIME);
         let verifier_runtime = Bytecode::new_legacy(ZONE_VERIFIER_RUNTIME);
         let messenger_runtime = Bytecode::new_legacy(ZONE_MESSENGER_RUNTIME);
@@ -2131,6 +2138,27 @@ mod tests {
 
         executor.deploy_zone_factory_at_boundary().unwrap();
         executor.deploy_zone_factory_at_boundary().unwrap();
+
+        for (destination, expected) in [
+            (ZONE_PORTAL_IMPL_ADDRESS, portal_runtime),
+            (ZONE_VERIFIER_ADDRESS, verifier_runtime),
+            (ZONE_MESSENGER_ADDRESS, messenger_runtime),
+        ] {
+            let installed = executor
+                .evm_mut()
+                .db_mut()
+                .load_cache_account(destination)
+                .unwrap()
+                .account_info()
+                .unwrap()
+                .code
+                .unwrap();
+            assert_eq!(
+                installed, expected,
+                "T10 must install the historical runtime"
+            );
+        }
+
         executor.upgrade_zone_runtimes_at_boundary().unwrap();
         executor.upgrade_zone_runtimes_at_boundary().unwrap();
         drop(executor);
@@ -2152,9 +2180,18 @@ mod tests {
             Some(expected_factory_config)
         );
         for (destination, expected) in [
-            (ZONE_PORTAL_IMPL_ADDRESS, portal_runtime),
-            (ZONE_VERIFIER_ADDRESS, verifier_runtime),
-            (ZONE_MESSENGER_ADDRESS, messenger_runtime),
+            (
+                ZONE_PORTAL_IMPL_ADDRESS,
+                Bytecode::new_legacy(T12_ZONE_PORTAL_RUNTIME),
+            ),
+            (
+                ZONE_VERIFIER_ADDRESS,
+                Bytecode::new_legacy(T12_ZONE_VERIFIER_RUNTIME),
+            ),
+            (
+                ZONE_MESSENGER_ADDRESS,
+                Bytecode::new_legacy(T12_ZONE_MESSENGER_RUNTIME),
+            ),
         ] {
             let installed = db
                 .load_cache_account(destination)
@@ -2165,12 +2202,19 @@ mod tests {
                 .unwrap();
             assert_eq!(installed, expected);
         }
+        assert_eq!(
+            db.load_cache_account(ZONE_PORTAL_IMPL_ADDRESS)
+                .unwrap()
+                .storage_slot(preserved_slot),
+            Some(preserved_value),
+            "runtime replacement must preserve storage"
+        );
 
         let calls = hook_calls.lock().unwrap();
         assert_eq!(
             calls.len(),
-            2,
-            "the identical T12 runtimes must not dispatch another update"
+            3,
+            "T10 and the first T12 install dispatch state; repeated installs are idempotent"
         );
         assert!(calls[0].contains_key(&ZONE_FACTORY_ADDRESS));
         for address in [
@@ -2179,8 +2223,8 @@ mod tests {
             ZONE_MESSENGER_ADDRESS,
         ] {
             assert!(
-                calls[1].contains_key(&address),
-                "shared runtime must be installed in the runtime state hook"
+                calls[1].contains_key(&address) && calls[2].contains_key(&address),
+                "T10 and T12 runtimes must be dispatched to the state hook"
             );
         }
     }

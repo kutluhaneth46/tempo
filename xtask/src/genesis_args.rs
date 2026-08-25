@@ -567,7 +567,7 @@ impl GenesisArgs {
             },
         );
 
-        insert_zone_state_at_genesis(self.t10_time, &mut genesis_alloc);
+        insert_zone_state_at_genesis(self.t10_time, self.t12_time, &mut genesis_alloc);
 
         genesis_alloc.insert(
             HISTORY_STORAGE_ADDRESS,
@@ -694,6 +694,7 @@ impl GenesisArgs {
 
 fn insert_zone_state_at_genesis(
     t10_time: u64,
+    t12_time: u64,
     genesis_alloc: &mut BTreeMap<Address, GenesisAccount>,
 ) {
     if t10_time == 0 {
@@ -709,6 +710,12 @@ fn insert_zone_state_at_genesis(
                     ..Default::default()
                 },
             );
+        }
+        if t12_time == 0 {
+            println!("Installing T12 shared Zone runtimes (T12 active at genesis)");
+            for account in tempo_contracts::precompiles::t12_zone_runtimes() {
+                genesis_alloc.get_mut(&account.address).unwrap().code = Some(account.code);
+            }
         }
     }
 }
@@ -1254,13 +1261,16 @@ mod tests {
             ZONE_FACTORY_ADDRESS, ZONE_MESSENGER_ADDRESS, ZONE_PORTAL_IMPL_ADDRESS,
             ZONE_VERIFIER_ADDRESS,
         },
-        zones::{ZONE_MESSENGER_RUNTIME, ZONE_PORTAL_RUNTIME, ZONE_VERIFIER_RUNTIME},
+        zones::{
+            T12_ZONE_MESSENGER_RUNTIME, T12_ZONE_PORTAL_RUNTIME, T12_ZONE_VERIFIER_RUNTIME,
+            ZONE_MESSENGER_RUNTIME, ZONE_PORTAL_RUNTIME, ZONE_VERIFIER_RUNTIME,
+        },
     };
 
     #[test]
     fn t10_genesis_installs_factory_and_canonical_shared_runtimes() {
         let mut alloc = BTreeMap::new();
-        insert_zone_state_at_genesis(0, &mut alloc);
+        insert_zone_state_at_genesis(0, 1, &mut alloc);
         let account = alloc.remove(&ZONE_FACTORY_ADDRESS).unwrap();
         let expected_config =
             U256::from(1) | (U256::from_be_slice(INITIAL_FACTORY_OWNER.as_slice()) << u32::BITS);
@@ -1282,8 +1292,23 @@ mod tests {
     #[test]
     fn future_t10_does_not_install_zone_factory_at_genesis() {
         let mut alloc = BTreeMap::new();
-        insert_zone_state_at_genesis(1, &mut alloc);
+        insert_zone_state_at_genesis(1, 1, &mut alloc);
 
         assert!(!alloc.contains_key(&ZONE_FACTORY_ADDRESS));
+    }
+
+    #[test]
+    fn t12_genesis_installs_latest_shared_runtimes() {
+        let mut alloc = BTreeMap::new();
+        insert_zone_state_at_genesis(0, 0, &mut alloc);
+
+        for (destination, expected) in [
+            (ZONE_PORTAL_IMPL_ADDRESS, T12_ZONE_PORTAL_RUNTIME),
+            (ZONE_VERIFIER_ADDRESS, T12_ZONE_VERIFIER_RUNTIME),
+            (ZONE_MESSENGER_ADDRESS, T12_ZONE_MESSENGER_RUNTIME),
+        ] {
+            assert_eq!(alloc[&destination].code.as_ref(), Some(&expected));
+        }
+        assert!(alloc.contains_key(&ZONE_FACTORY_ADDRESS));
     }
 }
