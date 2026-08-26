@@ -21,13 +21,13 @@ const MAX_FUTURE_SKEW_MILLIS: u64 = 300_000;
 /// `4779ce6909e00d6c1222926f48a053c03354cc23`.
 const APPROVED_PCRS: Option<[[u8; 48]; 3]> = Some([
     alloy::primitives::hex!(
-        "2a236d0bf7f4603894a86790c4516d02f31b0ddb9a323019ea4948c7024505222148ab9c745b7aefa14d1a0cf1d43b81"
+        "593889c8425cfcec9ac6f5dd409f9528205d6f11704715096aa4a7541b75248b9ba3ec10f436bf6040f8c0b022cdbfd5"
     ),
     alloy::primitives::hex!(
         "4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493"
     ),
     alloy::primitives::hex!(
-        "e9edf1e9ac009ced7caa2e8eee4d8d3c0a9217790d603791d857ca230a2d66cc9c8e0aca4db2528f9cbf412234725a32"
+        "23a506788b9595cedb86b0bdbbc3d7a40a8a1bb699038100d5278f98356c9ab19bb8693fc6343bf2bb230e6974aebaee"
     ),
 ]);
 
