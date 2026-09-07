@@ -20,7 +20,7 @@ pub struct TempoTransactionReceipt {
     pub input: Bytes,
 
     /// Compatibility placeholder for EVM tooling that expects transaction value on receipts.
-    #[serde(default, with = "alloy_serde::quantity")]
+    #[serde(default)]
     pub value: U256,
 
     /// Token that was used to pay fees for the transaction.

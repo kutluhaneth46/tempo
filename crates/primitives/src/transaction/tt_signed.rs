@@ -463,7 +463,7 @@ mod serde_impl {
         tx: Cow<'a, TempoTransaction>,
         #[serde(default)]
         input: Bytes,
-        #[serde(default, with = "alloy_serde::quantity")]
+        #[serde(default)]
         value: U256,
         signature: Cow<'a, TempoSignature>,
         hash: Cow<'a, B256>,
