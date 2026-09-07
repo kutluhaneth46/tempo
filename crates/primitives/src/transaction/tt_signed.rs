@@ -461,6 +461,10 @@ mod serde_impl {
     struct AASignedHelper<'a> {
         #[serde(flatten)]
         tx: Cow<'a, TempoTransaction>,
+        #[serde(default)]
+        input: Bytes,
+        #[serde(default, with = "alloy_serde::quantity")]
+        value: U256,
         signature: Cow<'a, TempoSignature>,
         hash: Cow<'a, B256>,
     }
@@ -476,6 +480,8 @@ mod serde_impl {
             }
             AASignedHelper {
                 tx: Cow::Borrowed(&self.tx),
+                input: Bytes::new(),
+                value: U256::ZERO,
                 signature: Cow::Borrowed(&self.signature),
                 hash: Cow::Borrowed(self.hash()),
             }
@@ -538,6 +544,9 @@ mod serde_impl {
                 !json.contains("signature_hash"),
                 "signature_hash cache must not be serialized"
             );
+            let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+            assert_eq!(value["input"], "0x");
+            assert_eq!(value["value"], "0x0");
 
             println!("\n=== AASigned JSON Output ===");
             println!("{json}");

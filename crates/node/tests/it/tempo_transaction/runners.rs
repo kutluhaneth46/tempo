@@ -848,6 +848,17 @@ pub(super) async fn run_fill_sign_send_matrix<E: TestEnv>(env: &mut E) -> eyre::
 // Unified matrix runners, generic over TestEnv
 // ===========================================================================
 
+fn assert_evm_compat_fields(value: &serde_json::Value) {
+    assert_eq!(
+        value["input"], "0x",
+        "input compatibility field should be present and empty"
+    );
+    assert_eq!(
+        value["value"], "0x0",
+        "value compatibility field should be present and zero"
+    );
+}
+
 /// Submit a signed envelope and assert the expected outcome.
 /// When `sync` is true, uses `submit_tx_sync` for the Success path.
 /// When `fee_payer_ctx` is Some on Success, asserts that the fee payer spent tokens.
@@ -872,6 +883,7 @@ async fn submit_expecting<E: TestEnv>(
                 .map(|s| s == "0x1")
                 .unwrap_or(false);
             assert!(status, "Transaction should succeed");
+            assert_evm_compat_fields(&receipt);
             if let Some(ctx) = fee_payer_ctx {
                 assert_fee_payer_spent(env.provider(), ctx, &receipt).await?;
             }
@@ -889,6 +901,7 @@ async fn submit_expecting<E: TestEnv>(
                 .map(|s| s == "0x1")
                 .unwrap_or(false);
             assert!(!status, "Transaction should revert (status 0x0)");
+            assert_evm_compat_fields(&receipt);
         }
     }
     Ok(tx_hash)
@@ -1894,6 +1907,7 @@ pub(super) async fn run_fill_sign_send<E: TestEnv>(
             .raw_request("eth_getTransactionByHash".into(), [tx_hash])
             .await?;
         let tx_data = raw_tx.expect("Mined transaction should be retrievable via RPC");
+        assert_evm_compat_fields(&tx_data);
         let nonce_key_str = tx_data["nonceKey"]
             .as_str()
             .expect("nonceKey field should be present in transaction response");

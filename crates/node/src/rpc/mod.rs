@@ -592,6 +592,8 @@ where
             .map(|(inner, tx)| {
                 let mut receipt = TempoTransactionReceipt {
                     inner,
+                    input: Default::default(),
+                    value: U256::ZERO,
                     fee_token: None,
                     // should never fail, we only deal with valid transactions here
                     fee_payer: tx

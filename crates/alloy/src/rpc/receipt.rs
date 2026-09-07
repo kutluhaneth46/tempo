@@ -1,6 +1,6 @@
 use alloy_consensus::ReceiptWithBloom;
 use alloy_network::ReceiptResponse;
-use alloy_primitives::{Address, B256, BlockHash, TxHash};
+use alloy_primitives::{Address, B256, BlockHash, Bytes, TxHash, U256};
 use alloy_rpc_types_eth::{Log, TransactionReceipt};
 use serde::{Deserialize, Serialize};
 use tempo_primitives::TempoReceipt;
@@ -14,6 +14,14 @@ pub struct TempoTransactionReceipt {
     #[deref]
     #[deref_mut]
     pub inner: TransactionReceipt<ReceiptWithBloom<TempoReceipt<Log>>>,
+
+    /// Compatibility placeholder for EVM tooling that expects transaction input on receipts.
+    #[serde(default)]
+    pub input: Bytes,
+
+    /// Compatibility placeholder for EVM tooling that expects transaction value on receipts.
+    #[serde(default, with = "alloy_serde::quantity")]
+    pub value: U256,
 
     /// Token that was used to pay fees for the transaction.
     ///
