@@ -444,8 +444,8 @@ where
     /// From T14 a fee payer signature costs one cold account access: the fee payer's account is
     /// read to check its root key. A request carrying [`FEE_PAYER_SIGNATURE_MARKER`] is sponsored
     /// by a fee payer that is not known yet, so the estimate adds that access on top of the
-    /// unsponsored estimate and keeps a request gas limit as a bound on the total. Before T14 the
-    /// marker is not handled and the request is estimated as it is.
+    /// unpriced, unsponsored estimate and keeps a request gas limit as a bound on the total. Before
+    /// T14 the marker is not handled and the request is estimated as it is.
     async fn estimate_gas_at(
         &self,
         mut request: RpcTxReq<Self::NetworkTypes>,
@@ -631,8 +631,11 @@ where
     }
 }
 
-/// Strips a T14+ [`FEE_PAYER_SIGNATURE_MARKER`] from `request` and lowers its gas limit to match.
-/// Returns the fee payer's access gas to add to the estimate, or zero.
+/// Strips a T14+ [`FEE_PAYER_SIGNATURE_MARKER`] from `request`, lowers its gas limit to match and
+/// drops its fees. Returns the fee payer's access gas to add to the estimate, or zero.
+///
+/// Without the marker the sender pays, and a priced estimate is capped by the sender's fee token
+/// balance, which the sponsor's transaction is never checked against.
 pub fn strip_fee_payer_marker(request: &mut TempoTransactionRequest, evm_env: &TempoEvmEnv) -> u64 {
     if request.fee_payer_signature != Some(FEE_PAYER_SIGNATURE_MARKER) || !evm_env.spec.is_t14() {
         return 0;
@@ -643,6 +646,8 @@ pub fn strip_fee_payer_marker(request: &mut TempoTransactionRequest, evm_env: &T
         .inner
         .gas
         .map(|limit| limit.saturating_sub(fee_payer_access));
+    request.inner.max_fee_per_gas = None;
+    request.inner.max_priority_fee_per_gas = None;
     fee_payer_access
 }
 

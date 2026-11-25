@@ -25,7 +25,10 @@ use reth_primitives_traits::transaction::TxHashRef;
 use reth_transaction_pool::TransactionPool;
 use sha2::{Digest, Sha256};
 use tempo_alloy::{TempoNetwork, provider::TempoProviderBuilderExt, rpc::TempoTransactionReceipt};
-use tempo_chainspec::{hardfork::TempoHardfork, spec::TEMPO_T1_BASE_FEE};
+use tempo_chainspec::{
+    hardfork::TempoHardfork,
+    spec::{TEMPO_T1_BASE_FEE, TEMPO_T7_BASE_FEE_CAP},
+};
 use tempo_contracts::precompiles::{
     DEFAULT_FEE_TOKEN,
     account_keychain::IAccountKeychain::{
@@ -351,6 +354,42 @@ async fn test_fill_includes_the_fee_payer_access_at_t14() -> eyre::Result<()> {
             "{provider}"
         );
     }
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_estimate_sponsored_request_with_fees_from_unfunded_sender_at_t14() -> eyre::Result<()>
+{
+    let mut env = Localnet::new().await?;
+    assert!(env.hardfork().is_t14(), "the devnet schedule starts at T14");
+    // Holds no fee token: the sponsor pays.
+    let signer = PrivateKeySigner::random();
+    let current_timestamp = env.current_block_timestamp().await?;
+    let test_case = FillTestCase::new(NonceMode::Protocol, KeyType::Secp256k1);
+    let mut marked = sponsored_fill_request(
+        &test_case,
+        signer.address(),
+        current_timestamp,
+        env.hardfork().expiring_nonce_max_expiry_secs(),
+    );
+    marked.set_fee_token(DEFAULT_FEE_TOKEN);
+    let unpriced_unmarked = TempoTransactionRequest {
+        fee_payer_signature: None,
+        ..marked.clone()
+    };
+    // The highest base fee from T7.
+    let max_fee_per_gas = u128::from(TEMPO_T7_BASE_FEE_CAP);
+    marked.inner.max_fee_per_gas = Some(max_fee_per_gas);
+    marked.inner.max_priority_fee_per_gas = Some(0);
+
+    assert_eq!(
+        estimate_gas(&env.provider, &marked).await?,
+        estimate_gas(&env.provider, &unpriced_unmarked).await? + COLD_ACCOUNT_ACCESS_COST,
+    );
+    assert_eq!(
+        fill_request(&env.provider, &marked).await?.max_fee_per_gas,
+        max_fee_per_gas,
+    );
     Ok(())
 }
 
