@@ -1296,6 +1296,32 @@ mod tests {
     }
 
     #[test]
+    fn allow_dns_defaults_on_and_accepts_equals_false() {
+        init_defaults_once();
+
+        assert!(parse_node_args(&["tempo", "node", "--dev"]).consensus.allow_dns);
+        assert!(
+            parse_node_args(&["tempo", "node", "--dev", "--consensus.allow-dns",])
+                .consensus
+                .allow_dns
+        );
+        assert!(
+            !parse_node_args(&["tempo", "node", "--dev", "--consensus.allow-dns=false",])
+                .consensus
+                .allow_dns
+        );
+        assert!(
+            parse_node_args(&["tempo", "node", "--dev", "--consensus.allow-dns=true",])
+                .consensus
+                .allow_dns
+        );
+        assert!(
+            TempoCli::try_parse_from(["tempo", "node", "--dev", "--consensus.allow-dns", "false"])
+                .is_err()
+        );
+    }
+
+    #[test]
     fn gossip_defaults_on_and_requires_a_consensus_engine() {
         init_defaults_once();
 

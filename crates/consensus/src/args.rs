@@ -338,8 +338,15 @@ pub struct Args {
     )]
     pub allow_private_ips: bool,
 
-    /// Whether to allow DNS-based ingress addresses.
-    #[arg(long = "consensus.allow-dns", default_value_t = true)]
+    /// Whether to allow DNS-based ingress addresses. On by default; set to
+    /// `false` to reject DNS-based ingress addresses.
+    #[arg(
+        long = "consensus.allow-dns",
+        default_value_t = true,
+        default_missing_value = "true",
+        num_args = 0..=1,
+        require_equals = true
+    )]
     pub allow_dns: bool,
 
     /// Time into the future that a timestamp can be and still be considered valid.
